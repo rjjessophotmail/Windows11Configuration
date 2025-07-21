@@ -1,0 +1,50 @@
+<#
+.SYNOPSIS
+  Static Mountain Standard time zone, DST off, custom Canadian NTP servers.
+.DESCRIPTION
+  Disables auto‐DST, replaces default time servers with time.nrc.ca and time.chu.nrc.ca, restarts and resyncs.
+.AUTHOR
+  Originally Jessop; enhanced by Robert.
+.VERSION
+  2.0
+#>
+
+param (
+    [switch]$DryRun
+)
+
+# Logging
+$logFile = "C:\Logs\TimeConfig.log"
+Start-Transcript -Path $logFile -ErrorAction SilentlyContinue
+
+if (-not $DryRun) {
+    # Check current zone and DST support
+    $tz = Get-TimeZone
+    Write-Output "Current time zone: $($tz.Id)" | Out-File $logFile -Append
+    if ($tz.SupportsDaylightSavingTime) {
+        Write-Warning "DST is active; switching to static zone."
+    }
+
+    # Disable auto zone updates and set static zone
+    Set-ItemProperty -Path HKLM:\SYSTEM\CurrentControlSet\Services\tzautoupdate -Name Start -Value 4
+    tzutil /s "US Mountain Standard Time_dstoff"
+
+    # Replace NTP servers
+    Remove-ItemProperty -Path HKLM:\SYSTEM\CurrentControlSet\Services\W32Time\Parameters `
+        -Name NtpServer -ErrorAction SilentlyContinue
+    $servers = "time.nrc.ca,0x1 time.chu.nrc.ca,0x1"
+    Set-ItemProperty -Path HKLM:\SYSTEM\CurrentControlSet\Services\W32Time\Parameters `
+        -Name NtpServer -Value $servers
+    Set-ItemProperty -Path HKLM:\SYSTEM\CurrentControlSet\Services\W32Time\Parameters `
+        -Name Type -Value NTP
+
+    # Restart and resync
+    Restart-Service w32time
+    Start-Sleep -Seconds 5
+    w32tm /resync
+
+    Write-Output "Configured time zone and servers: $servers" | Out-File $logFile -Append
+}
+
+Stop-Transcript
+Write-Host "Time zone module complete." -ForegroundColor Green

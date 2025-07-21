@@ -1,0 +1,83 @@
+<#
+.SYNOPSIS
+  Applies privacy optimizations and configures Windows Update preferences to reduce telemetry and unwanted app suggestions.
+.DESCRIPTION
+  Disables unnecessary content delivery, task prompts, and Windows Consumer features; handles update configuration and schedules.
+.AUTHOR
+  Originally Jessop, enhanced by Robert with Copilot assistance.
+.VERSION
+  2.0
+#>
+
+# =========================
+# 🧾 Setup Logging
+# =========================
+$logFile = "C:\Logs\PrivacyConfig.log"
+Start-Transcript -Path $logFile
+Write-Host "🕶️ Starting privacy and update configuration..." -ForegroundColor Cyan
+
+# =========================
+# 🛠️ Helper: Safe Registry Setter
+# =========================
+function Set-RegistryValueSafe {
+    param (
+        [string]$Path,
+        [string]$Name,
+        [Object]$Value,
+        [string]$Type = "DWord"
+    )
+    try {
+        Set-ItemProperty -Path $Path -Name $Name -Type $Type -Value $Value
+        Write-Output "🔐 $Name set to $Value at $Path" | Out-File $logFile -Append
+    } catch {
+        Write-Warning "⚠️ Failed to set $Name at $Path: $_"
+    }
+}
+
+# =========================
+# 📦 Disable Consumer Features & Recommendations
+# =========================
+Set-RegistryValueSafe "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" "DisableWindowsConsumerFeatures" 1
+Set-RegistryValueSafe "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" "SystemPaneSuggestionsEnabled" 0
+Set-RegistryValueSafe "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" "SubscribedContent-310093Enabled" 0
+
+# =========================
+# 🔧 Disable Scheduled Update Tasks
+# =========================
+$tasksToDisable = @(
+    "\Microsoft\Windows\Setup\EOSNotify",
+    "\Microsoft\Windows\Setup\EOSNotify2",
+    "\Microsoft\Windows\Setup\OobeUpdater"
+)
+foreach ($task in $tasksToDisable) {
+    try {
+        Disable-ScheduledTask -TaskName $task
+        Write-Output "🛑 Disabled scheduled task: $task" | Out-File $logFile -Append
+    } catch {
+        Write-Warning "⚠️ Failed to disable task $task: $_"
+    }
+}
+
+# =========================
+# 🪟 Configure Windows Update Behavior
+# =========================
+# Turn off automatic updates (requires AU key setup)
+$wuPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU"
+if (-not (Test-Path $wuPath)) {
+    New-Item -Path $wuPath -Force
+}
+Set-RegistryValueSafe $wuPath "NoAutoUpdate" 1
+
+# Enable Microsoft Update Service Manager
+try {
+    (New-Object -com "Microsoft.Update.ServiceManager").AddService2("7971f918-a847-4430-9279-4a52d1efe18d", 7, "")
+    Write-Output "🌐 Microsoft Update Service enabled" | Out-File $logFile -Append
+} catch {
+    Write-Warning "⚠️ Failed to enable Microsoft Update Service: $_"
+}
+
+# =========================
+# ✅ Wrap-Up
+# =========================
+Stop-Transcript
+Write-Host "🔒 Privacy and update configuration complete." -ForegroundColor Green

@@ -1,0 +1,46 @@
+<#
+.SYNOPSIS
+  Creates a timestamped ZIP backup of the entire project folder.
+
+.DESCRIPTION
+  • Archives everything under the project root except the Backup folder itself  
+  • Places the ZIP in a “Backups” subfolder  
+  • Name format: ProjectBackup_yyyyMMdd_HHmmss.zip
+
+.PARAMETER ProjectRoot
+  Path to your project root (defaults to current directory).
+
+.PARAMETER BackupRoot
+  Directory where backups are stored (defaults to “.\Backups”).
+
+.EXAMPLE
+  # From your project root:
+  .\Backup-Project.ps1
+
+.EXAMPLE
+  # Specify custom locations:
+  .\Backup-Project.ps1 -ProjectRoot 'C:\Workspace\MyScripts' -BackupRoot 'D:\Archives'
+#>
+
+param(
+  [string]$ProjectRoot = (Get-Location).Path,
+  [string]$BackupRoot  = (Join-Path (Get-Location).Path 'Backups')
+)
+
+# Ensure the backup folder exists
+if (-not (Test-Path $BackupRoot)) {
+  New-Item -Path $BackupRoot -ItemType Directory -Force | Out-Null
+}
+
+# Build timestamped archive name
+$timestamp = Get-Date -Format 'yyyyMMdd_HHmmss'
+$archive   = Join-Path $BackupRoot "ProjectBackup_$timestamp.zip"
+
+# Gather everything except the Backups folder
+$items = Get-ChildItem -Path $ProjectRoot -Force |
+         Where-Object { $_.FullName -notlike (Join-Path $BackupRoot '*') }
+
+# Create the ZIP
+Compress-Archive -Path ($items.FullName) -DestinationPath $archive -Force
+
+Write-Host "✅ Backup complete:" $archive

@@ -1,0 +1,48 @@
+<#
+.SYNOPSIS
+  Schedules weekly Disk Cleanup and configures Storage Sense.
+.DESCRIPTION
+  Creates a Sunday 2 AM Scheduled Task for cleanmgr and sets Storage Sense parameters.
+.AUTHOR
+  Originally Jessop; enhanced by Robert.
+.VERSION
+  1.1
+#>
+
+param (
+    [switch]$DryRun
+)
+
+# Logging
+$logFile = "C:\Logs\MaintenanceConfig.log"
+Start-Transcript -Path $logFile -ErrorAction SilentlyContinue
+
+if (-not $DryRun) {
+    # Schedule Disk Cleanup
+    $tr = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday -At 2:00AM
+    $ac = New-ScheduledTaskAction -Execute "cleanmgr.exe"
+    Register-ScheduledTask -TaskName "Weekly Disk Cleanup" -Action $ac -Trigger $tr -Force
+
+    # Health check
+    Get-Volume | Out-File $logFile -Append
+
+    # Storage Sense settings
+    function SS { param($n,$v)
+        Set-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\StoragePolicy `
+            -Name $n -Type DWord -Value $v
+        Write-Output "SS $n => $v" | Out-File $logFile -Append
+    }
+
+    SS 01 1
+    SS 2048 7
+    SS 04 1
+    SS 08 1
+    SS 256 60
+    SS 32 1
+    SS 512 0
+
+    Write-Output "Maintenance configured." | Out-File $logFile -Append
+}
+
+Stop-Transcript
+Write-Host "Maintenance module complete." -ForegroundColor Green

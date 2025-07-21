@@ -1,0 +1,64 @@
+<#
+.SYNOPSIS
+  Configures custom "Altitude Field" power plan with performance-oriented settings.
+.DESCRIPTION
+  Deletes default power plans, renames High Performance plan, and applies granular tweaks.
+.AUTHOR
+  Originally Jessop, enhanced by Robert with Copilot assistance.
+.VERSION
+  2.0
+#>
+
+# =========================
+# 🔧 Global Configuration
+# =========================
+$logFile = "C:\Logs\PowerPlanConfig.log"
+Start-Transcript -Path $logFile
+
+# =========================
+# 🛠️ Helper Function: Set Power Value (AC/DC)
+# =========================
+function Set-PowerSetting {
+    param (
+        [string]$SubGroup,
+        [string]$Setting,
+        [int]$Value
+    )
+    try {
+        powercfg /SETACVALUEINDEX SCHEME_CURRENT $SubGroup $Setting $Value
+        powercfg /SETDCVALUEINDEX SCHEME_CURRENT $SubGroup $Setting $Value
+        Write-Output "✅ Set $SubGroup - $Setting to $Value" | Out-File $logFile -Append
+    } catch {
+        Write-Warning "⚠️ Failed to set $SubGroup - $Setting: $_"
+    }
+}
+
+# =========================
+# 🚀 Main Configuration
+# =========================
+Write-Host "Configuring Altitude Field Power Plan..." -ForegroundColor Cyan
+
+# Activate High Performance plan and rename
+powercfg -SETACTIVE SCHEME_MIN
+powercfg /CHANGENAME 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c "Altitude Field"
+
+# Delete other power plans
+$defaultPlans = @(
+    "a1841308-3541-4fab-bc81-f71556f20b4a", # Power Saver
+    "381b4222-f694-41f0-9685-ff5bb260df2e", # Balanced
+    "e9a42b02-d5df-448d-aa00-03f14749eb61"  # Ultimate Performance
+)
+foreach ($guid in $defaultPlans) {
+    powercfg /delete $guid
+}
+
+# Example Power Setting: Disable display sleep
+Set-PowerSetting "7516b95f-f776-4464-8c53-06167f40cc99" "3c0bc021-c8a8-4e07-a973-6b14cbcb2b7e" 0
+
+# Add more settings here using Set-PowerSetting...
+
+# =========================
+# ✅ Wrap-Up
+# =========================
+Stop-Transcript
+Write-Host "Power plan configuration complete." -ForegroundColor Green

@@ -1,0 +1,46 @@
+<#
+.SYNOPSIS
+  Secures network profiles and disables autoplay.
+.DESCRIPTION
+  Sets all networks to private, meters Wi-Fi, syncs firewall, and turns off autoplay.
+.AUTHOR
+  Originally Jessop; enhanced by Robert.
+.VERSION
+  1.1
+#>
+
+param (
+    [switch]$DryRun
+)
+
+# Logging
+$logFile = "C:\Logs\NetworkPrivacy.log"
+Start-Transcript -Path $logFile -ErrorAction SilentlyContinue
+
+if (-not $DryRun) {
+    # Private networks + firewall
+    $profiles = Get-NetConnectionProfile
+    foreach ($p in $profiles) {
+        Set-NetConnectionProfile -InterfaceIndex $p.InterfaceIndex -NetworkCategory Private
+        Set-NetFirewallProfile -Profile Domain,Private -Enabled True
+        Write-Output "Network $($p.Name)->Private" | Out-File $logFile -Append
+    }
+
+    # Metered Wi-Fi
+    $w = Get-NetAdapter | Where-Object MediaType -EQ '802.11'
+    foreach ($a in $w) {
+        Set-NetConnectionProfile -InterfaceAlias $a.Name -NetworkCost Metered
+        Write-Output "Wi-Fi $($a.Name)->Metered" | Out-File $logFile -Append
+    }
+
+    # Disable Autoplay/Autorun
+    Set-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\AutoplayHandlers `
+        -Name DisableAutoplay -Type DWord -Value 1
+    $key = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer"
+    if (-not (Test-Path $key)) { New-Item -Path $key | Out-Null }
+    Set-ItemProperty -Path $key -Name NoDriveTypeAutoRun -Type DWord -Value 255
+    Write-Output "Autoplay/Autorun disabled." | Out-File $logFile -Append
+}
+
+Stop-Transcript
+Write-Host "Network Privacy module complete." -ForegroundColor Green

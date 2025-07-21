@@ -1,0 +1,49 @@
+<#
+.SYNOPSIS
+  Enables visibility of non-present devices in Device Manager.
+.DESCRIPTION
+  Sets MACHINE env var devmgr_show_nonpresent_devices=1, writes registry, and broadcasts the change.
+.AUTHOR
+  Robert with Microsoft Copilot
+.VERSION
+  1.1
+#>
+
+param([switch]$DryRun)
+
+# Logging setup
+$logFile = "C:\Logs\DeviceSettings.log"
+Start-Transcript -Path $logFile -ErrorAction SilentlyContinue
+
+if (-not $DryRun) {
+    Write-Output "📦 Setting devmgr_show_nonpresent_devices=1" | Out-File $logFile -Append
+
+    # Persist as a machine‐wide environment variable
+    [Environment]::SetEnvironmentVariable(
+        "devmgr_show_nonpresent_devices","1","Machine"
+    )
+
+    # Also write to registry for new processes
+    $envKey = "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
+    if (-not (Test-Path $envKey)) { New-Item -Path $envKey -Force | Out-Null }
+    Set-ItemProperty -Path $envKey `
+        -Name "devmgr_show_nonpresent_devices" `
+        -Value "1" -Type ExpandString -Force
+
+    # Broadcast the change so new Device Manager windows pick it up
+    $sig = @'
+    [DllImport("user32.dll", SetLastError=true)]
+    public static extern IntPtr SendMessageTimeout(
+      IntPtr hWnd, uint Msg, UIntPtr wParam,
+      string lParam, uint fuFlags, uint uTimeout, out UIntPtr result);
+'@
+    Add-Type -MemberDefinition $sig -Name NativeMethods -Namespace Win32
+    [Win32.NativeMethods]::SendMessageTimeout(
+      [IntPtr]0xffff, 0x1A, [UIntPtr]0, "Environment", 0, 100, [UIntPtr]0
+    )
+
+    Write-Output "✅ devmgr_show_nonpresent_devices=1 applied and broadcast." | Out-File $logFile -Append
+}
+
+Stop-Transcript
+Write-Host "Device settings module complete." -ForegroundColor Green

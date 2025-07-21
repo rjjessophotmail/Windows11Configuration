@@ -1,0 +1,57 @@
+<#
+.SYNOPSIS
+  Automates disk cleanup and configures Storage Sense for scheduled maintenance.
+.DESCRIPTION
+  Schedules weekly cleanup and sets Storage Sense parameters to manage space efficiently.
+.AUTHOR
+  Originally Jessop, enhanced by Robert with Copilot assistance.
+.VERSION
+  1.0
+#>
+
+# =========================
+# 🧾 Setup Logging
+# =========================
+$logFile = "C:\Logs\MaintenanceConfig.log"
+Start-Transcript -Path $logFile
+Write-Host "🧼 Initiating maintenance configuration..." -ForegroundColor Cyan
+
+# =========================
+# 📆 Schedule Weekly Disk Cleanup
+# =========================
+try {
+    $trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday -At 2:00AM
+    $action  = New-ScheduledTaskAction -Execute "cleanmgr.exe"
+    Register-ScheduledTask -Action $action -Trigger $trigger -TaskName "Weekly Disk Cleanup"
+    Write-Output "🗑️ Scheduled disk cleanup on Sundays at 2:00 AM" | Out-File $logFile -Append
+} catch {
+    Write-Warning "⚠️ Disk cleanup schedule creation failed: $_"
+}
+
+# =========================
+# 🔧 Configure Storage Sense
+# =========================
+function Set-StorageSenseValue {
+    param (
+        [string]$Name,
+        [int]$Value
+    )
+    Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\StoragePolicy" `
+                     -Name $Name -Type DWord -Value $Value
+    Write-Output "🧮 Set Storage Sense '$Name' to $Value" | Out-File $logFile -Append
+}
+
+# Enable Storage Sense
+Set-StorageSenseValue -Name '01' -Value 1           # Toggle: On
+Set-StorageSenseValue -Name '2048' -Value 7         # Frequency: Weekly
+Set-StorageSenseValue -Name '04' -Value 1           # Delete temp files
+Set-StorageSenseValue -Name '08' -Value 1           # Enable recycle bin cleanup
+Set-StorageSenseValue -Name '256' -Value 60         # Recycle bin: 60 days
+Set-StorageSenseValue -Name '32' -Value 1           # Enable downloads cleanup
+Set-StorageSenseValue -Name '512' -Value 0          # Downloads: Never delete
+
+# =========================
+# ✅ Wrap-Up
+# =========================
+Stop-Transcript
+Write-Host "🧽 Maintenance and Storage Sense configuration complete." -ForegroundColor Green

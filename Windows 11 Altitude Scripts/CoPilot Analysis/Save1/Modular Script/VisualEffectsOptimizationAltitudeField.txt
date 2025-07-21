@@ -1,0 +1,77 @@
+<#
+.SYNOPSIS
+  Applies performance-based GUI optimizations by disabling unnecessary Windows visual effects.
+.DESCRIPTION
+  Adjusts registry keys to customize appearance, minimize animations, and enhance UI responsiveness.
+.AUTHOR
+  Originally Jessop, enhanced by Robert with Copilot assistance.
+.VERSION
+  1.0
+#>
+
+# =========================
+# 🧾 Logging Setup
+# =========================
+$logFile = "C:\Logs\VisualConfig.log"
+Start-Transcript -Path $logFile
+Write-Host "🎛️ Starting GUI and visual effects optimization..." -ForegroundColor Cyan
+
+# =========================
+# ⚙️ Function: Safe Visual Registry Setter
+# =========================
+function Set-VisualEffect {
+    param (
+        [string]$Name,
+        [Object]$Value
+    )
+    $path = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects"
+    try {
+        Set-ItemProperty -Path $path -Name $Name -Type DWord -Value $Value
+        Write-Output "🎨 Set $Name to $Value" | Out-File $logFile -Append
+    } catch {
+        Write-Warning "⚠️ Failed to set $Name: $_"
+    }
+}
+
+# =========================
+# 🧠 Apply Core Visual Tweaks
+# =========================
+
+# Base customization mode
+Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" -Name "VisualFXSetting" -Type DWord -Value 3
+
+# Disable minimize/maximize animations
+Set-VisualEffect -Name "AnimateMinMax" -Value 0
+
+# Disable control element animations
+Set-VisualEffect -Name "ControlAnimations" -Value 0
+
+# Disable taskbar animations
+Set-VisualEffect -Name "TaskbarAnimations" -Value 0
+
+# Disable Aero Peek
+Set-VisualEffect -Name "DWMAeroPeekEnabled" -Value 0
+
+# Disable menu fade/slide effects
+Set-VisualEffect -Name "MenuAnimation" -Value 0
+Set-VisualEffect -Name "TooltipAnimation" -Value 0
+Set-VisualEffect -Name "SelectionFade" -Value 0
+
+# Disable shadows, thumbnails, drag effects
+Set-VisualEffect -Name "CursorShadow" -Value 0
+Set-VisualEffect -Name "DropShadow" -Value 0
+Set-VisualEffect -Name "ThumbnailsOrIcon" -Value 0
+Set-VisualEffect -Name "ListviewAlphaSelect" -Value 0
+Set-VisualEffect -Name "ListviewShadow" -Value 0
+Set-VisualEffect -Name "ComboBoxAnimation" -Value 0
+
+# Enhance font smoothing and full-window drag
+Set-VisualEffect -Name "FontSmoothing" -Value 1
+Set-VisualEffect -Name "DragFullWindows" -Value 1
+Set-VisualEffect -Name "ListBoxSmoothScrolling" -Value 1
+
+# =========================
+# ✅ Wrap-Up
+# =========================
+Stop-Transcript
+Write-Host "🌈 Visual effects optimization complete." -ForegroundColor Green

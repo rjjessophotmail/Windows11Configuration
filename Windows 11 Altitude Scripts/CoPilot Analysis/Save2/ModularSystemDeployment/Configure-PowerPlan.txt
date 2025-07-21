@@ -1,0 +1,54 @@
+<#
+.SYNOPSIS
+  Creates “Altitude Field” power plan, deletes defaults, and applies performance settings.
+.DESCRIPTION
+  Detects and renames High Performance plan, backs it up, removes others, and sets AC/DC values.
+.AUTHOR
+  Originally Jessop; enhanced by Robert.
+.VERSION
+  2.0
+#>
+
+param (
+    [switch]$DryRun
+)
+
+# Logging
+$logFile = "C:\Logs\PowerPlanConfig.log"
+Start-Transcript -Path $logFile -ErrorAction SilentlyContinue
+
+if (-not $DryRun) {
+    # Activate and rename High Performance
+    $hp = (Get-ScheduledTask -TaskName "Microsoft\Windows\Power\Power Efficiency Diagnostics\Analyze").TaskName  # dummy to ensure module loaded
+    powercfg -SETACTIVE SCHEME_MIN
+    powercfg /CHANGENAME SCHEME_MIN "Altitude Field"
+
+    # Backup current plan
+    powercfg -export "C:\Logs\PowerPlanBackup.pow" SCHEME_CURRENT
+
+    # Delete default schemes
+    $toDelete = @(
+        "a1841308-3541-4fab-bc81-f71556f20b4a", 
+        "381b4222-f694-41f0-9685-ff5bb260df2e",
+        "e9a42b02-d5df-448d-aa00-03f14749eb61"
+    )
+    foreach ($g in $toDelete) {
+        powercfg /delete $g -ErrorAction SilentlyContinue
+    }
+
+    # Helper to set AC/DC values
+    function Set-Power {
+        param($sub,$set,$val)
+        powercfg /SETACVALUEINDEX SCHEME_CURRENT $sub $set $val
+        powercfg /SETDCVALUEINDEX SCHEME_CURRENT $sub $set $val
+        Write-Output "Set $sub/$set => $val" | Out-File $logFile -Append
+    }
+
+    # Example: disable display sleep
+    Set-Power "7516b95f-f776-4464-8c53-06167f40cc99" "3c0bc021-c8a8-4e07-a973-6b14cbcb2b7e" 0
+
+    Write-Output "Power plan configured." | Out-File $logFile -Append
+}
+
+Stop-Transcript
+Write-Host "Power plan module complete." -ForegroundColor Green

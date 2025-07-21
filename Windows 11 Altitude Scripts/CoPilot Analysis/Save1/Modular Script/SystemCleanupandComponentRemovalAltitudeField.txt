@@ -1,0 +1,82 @@
+<#
+.SYNOPSIS
+  Performs system cleanup, disables OneDrive, and configures Windows Update installation strategy.
+.DESCRIPTION
+  Removes temporary files, initiates driver and feature updates, and disables unnecessary components like OneDrive.
+.AUTHOR
+  Originally Jessop, enhanced by Robert with Copilot assistance.
+.VERSION
+  1.0
+#>
+
+# =========================
+# 🧾 Begin Logging
+# =========================
+$logFile = "C:\Logs\CleanupConfig.log"
+Start-Transcript -Path $logFile
+Write-Host "🧹 Starting cleanup and update configuration..." -ForegroundColor Cyan
+
+# =========================
+# 📁 Clear Recently Used Files in Quick Access
+# =========================
+try {
+    $Namespace = "shell:::{679f85cb-0220-4080-b29b-5540cc05aab6}"
+    $quickAccess = New-Object -ComObject shell.application
+    $recentFiles = $quickAccess.Namespace($Namespace).Items()
+    $recentFiles | Where-Object { $_.Path -like "*.*" } | ForEach-Object { $_.InvokeVerb("remove") }
+    Write-Output "🧼 Cleared recent files from Quick Access." | Out-File $logFile -Append
+} catch {
+    Write-Warning "⚠️ Failed to clear Quick Access files: $_"
+}
+
+# =========================
+# 🗂️ Update Initiation with Safety Switches
+# =========================
+try {
+    Set-ExecutionPolicy RemoteSigned -Confirm:$false -Force
+    Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Confirm:$false -Force
+    Install-Module -Name PSWindowsUpdate -Confirm:$false -Force
+
+    # Set PSGallery as Trusted
+    Install-PackageProvider -Name NuGet -Force
+    Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+    Install-Module -Name PackageManagement -Force
+
+    # Add Microsoft Update Service
+    Add-WUServiceManager -MicrosoftUpdate -Confirm:$false
+
+    # Perform update cycle: skip reboot for first 2 passes
+    for ($i = 1; $i -le 2; $i++) {
+        Install-WindowsUpdate -Install -AcceptAll -UpdateType Driver `
+            -MicrosoftUpdate -ForceDownload -ForceInstall -IgnoreReboot `
+            -ErrorAction SilentlyContinue
+    }
+
+    # Final pass with reboot enabled
+    Install-WindowsUpdate -MicrosoftUpdate -AcceptAll -AutoReboot
+    Write-Output "⬆️ Windows updates installed and reboot scheduled." | Out-File $logFile -Append
+} catch {
+    Write-Warning "⚠️ Windows update execution failed: $_"
+}
+
+# =========================
+# 🗃️ Disable OneDrive and Remove
+# =========================
+try {
+    Stop-Process -Name "OneDrive" -Force -ErrorAction SilentlyContinue
+    $setupPath = "$env:SystemRoot\SysWOW64\OneDriveSetup.exe"
+    if (Test-Path $setupPath) {
+        Start-Process $setupPath -ArgumentList "/uninstall" -Wait
+        Write-Output "🗑️ OneDrive uninstalled from system." | Out-File $logFile -Append
+    } else {
+        Write-Warning "⚠️ OneDrive setup not found."
+    }
+} catch {
+    Write-Warning "⚠️ Error during OneDrive removal: $_"
+}
+
+# =========================
+# ✅ Wrap-Up
+# =========================
+Stop-Transcript
+Write-Host "🧯 Cleanup and update process complete." -ForegroundColor Green

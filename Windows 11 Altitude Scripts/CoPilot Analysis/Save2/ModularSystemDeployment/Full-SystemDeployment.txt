@@ -1,0 +1,61 @@
+<#
+.SYNOPSIS
+  Master orchestrator for full system deployment configuration.
+.DESCRIPTION
+  Invokes each submodule in sequence with optional DryRun.
+.AUTHOR
+  Robert with Microsoft Copilot
+.VERSION
+  1.0
+#>
+
+param (
+    [switch]$DryRun
+)
+
+if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(`
+    [Security.Principal.WindowsBuiltinRole]::Administrator)) {
+    Write-Warning "Run as Administrator."
+    exit
+}
+
+$timestamp = Get-Date -Format "yyyyMMdd_HHmm"
+$masterLog = "C:\Logs\SystemDeploy_$timestamp.log"
+Start-Transcript -Path $masterLog -ErrorAction SilentlyContinue
+
+$modules = @(
+    "Configure-TimeZone.ps1",
+    "Configure-PowerPlan.ps1",
+    "Configure-Maintenance.ps1",
+    "Configure-PrivacyAndUpdates.ps1",
+    "Configure-VisualEffects.ps1",
+    "Configure-NetworkPrivacy.ps1",
+    "Configure-CleanupAndUpdates.ps1"
+)
+
+$summary = @{}
+
+foreach ($m in $modules) {
+    try {
+        Write-Host "Running $m ..." -ForegroundColor Cyan
+        if ($DryRun) {
+            & ".\$m" -DryRun
+            $summary[$m] = "DryRun"
+        } else {
+            & ".\$m"
+            $summary[$m] = "Success"
+        }
+    } catch {
+        Write-Warning "Error in $m: $_"
+        $summary[$m] = "Failed"
+    }
+}
+
+Write-Host "`nConfiguration Summary:" -ForegroundColor Yellow
+foreach ($k in $summary.Keys) {
+    $c = if ($summary[$k] -eq "Success") { "Green" } elseif ($summary[$k] -eq "DryRun") { "Blue" } else { "Red" }
+    Write-Host "$k => $($summary[$k])" -ForegroundColor $c
+}
+
+Stop-Transcript
+Write-Host "Deployment complete." -ForegroundColor Green

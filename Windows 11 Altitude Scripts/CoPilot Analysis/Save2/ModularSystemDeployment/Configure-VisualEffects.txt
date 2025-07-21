@@ -1,0 +1,55 @@
+<#
+.SYNOPSIS
+  Disables nonessential animations and enhances UI responsiveness.
+.DESCRIPTION
+  Checks accessibility, then tweaks VisualEffects registry entries for performance.
+.AUTHOR
+  Originally Jessop; enhanced by Robert.
+.VERSION
+  1.1
+#>
+
+param (
+    [switch]$DryRun
+)
+
+# Logging
+$logFile = "C:\Logs\VisualConfig.log"
+Start-Transcript -Path $logFile -ErrorAction SilentlyContinue
+
+if (-not $DryRun) {
+    # Warn if high contrast
+    $hc = Get-ItemPropertyValue HKCU:\Control Panel\Accessibility\HighContrast -Name Flags -ErrorAction SilentlyContinue
+    if ($hc -eq "1") {
+        Write-Warning "High Contrast mode active; skipping some visual tweaks."
+    }
+
+    # Helper
+    function VE { param($n,$v)
+        Set-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects `
+            -Name $n -Type DWord -Value $v
+        Write-Output "$n->$v" | Out-File $logFile -Append
+    }
+
+    VE VisualFXSetting 3
+    VE ControlAnimations 0
+    VE AnimateMinMax 0
+    VE TaskbarAnimations 0
+    VE DWMAeroPeekEnabled 0
+    VE MenuAnimation 0
+    VE TooltipAnimation 0
+    VE SelectionFade 0
+    VE CursorShadow 0
+    VE DropShadow 0
+    VE ThumbnailsOrIcon 0
+    VE ListviewAlphaSelect 0
+    VE ComboBoxAnimation 0
+    VE FontSmoothing 1
+    VE DragFullWindows 1
+    VE ListBoxSmoothScrolling 1
+
+    Write-Output "Visual effects optimized." | Out-File $logFile -Append
+}
+
+Stop-Transcript
+Write-Host "Visual Effects module complete." -ForegroundColor Green

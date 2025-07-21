@@ -1,0 +1,59 @@
+<#
+.SYNOPSIS
+  Applies enterprise-style Microsoft Edge policies via registry.
+.DESCRIPTION
+  Disables all account sync/sign-in prompts, hides first-run/import dialogs, removes Discover feed,
+  forces display of Home + Download buttons, and installs uBlock Origin.
+.AUTHOR
+  Robert with Microsoft Copilot
+.VERSION
+  1.0
+#>
+
+param(
+    [switch]$DryRun
+)
+
+# Setup logging
+$logFile = "C:\Logs\EdgeConfig.log"
+Start-Transcript -Path $logFile -ErrorAction SilentlyContinue
+
+function Set-EdgePolicy {
+    param(
+        [string]$Name,
+        [Object]$Value,
+        [ValidateSet('DWord','String')][string]$Type = 'DWord'
+    )
+    $root = 'HKLM:\SOFTWARE\Policies\Microsoft\Edge'
+    if (-not (Test-Path $root)) { New-Item -Path $root -Force | Out-Null }
+    Set-ItemProperty -Path $root -Name $Name -Value $Value -Type $Type -Force
+    Write-Output "$Name -> $Value" | Out-File $logFile -Append
+}
+
+if (-not $DryRun) {
+    # disable Microsoft account sign-in & sync
+    Set-EdgePolicy -Name 'BlockSignin'    -Value 1
+    Set-EdgePolicy -Name 'SyncDisabled'   -Value 1
+
+    # hide first-run and import prompts
+    Set-EdgePolicy -Name 'HideFirstRunExperience' -Value 1
+    Set-EdgePolicy -Name 'HideImportOnFirstRun'   -Value 1
+
+    # turn off Discover (news/“Microsoft experiences” in new-tab)
+    Set-EdgePolicy -Name 'DiscoverFeedEnabled' -Value 0
+
+    # always show Home + Download buttons
+    Set-EdgePolicy -Name 'ShowHomeButton'            -Value 1
+    Set-EdgePolicy -Name 'ShowDownloadButtonInToolbar' -Value 1
+
+    # force-install uBlock Origin
+    $extListKey = 'HKLM:\SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallForcelist'
+    if (-not (Test-Path $extListKey)) { New-Item -Path $extListKey -Force | Out-Null }
+    # uBlock Origin ID + official update URL
+    $extString = 'cjpalhdlnbpafiamejdnhcphjbkeiagm;https://clients2.google.com/service/update2/crx'
+    Set-ItemProperty -Path $extListKey -Name '1' -Value $extString -Type String -Force
+    Write-Output "Forced install uBlock Origin: $extString" | Out-File $logFile -Append
+}
+
+Stop-Transcript
+Write-Host "🖥️ Edge configuration module complete." -ForegroundColor Green

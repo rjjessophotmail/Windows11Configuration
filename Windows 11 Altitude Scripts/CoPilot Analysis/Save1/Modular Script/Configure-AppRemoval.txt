@@ -1,0 +1,65 @@
+<#
+.SYNOPSIS
+  Removes unwanted built-in Windows 11 UWP apps for all users.
+.DESCRIPTION
+  Targets Copilot, Feedback Hub, Office Hub, News, OneDrive, Mail/Outlook, Quick Assist, Solitaire,
+  Sound Recorder, Alarms & Clock, Xbox suite, and other specified packages.
+.PARAMETER DryRun
+  Show actions without executing them.
+.PARAMETER RemoveApps
+  When specified, actually performs removals.
+.AUTHOR
+  Robert with Microsoft Copilot
+.VERSION
+  1.0
+#>
+
+param (
+    [switch]$DryRun,
+    [switch]$RemoveApps
+)
+
+# If not in removal mode, just exit
+if (-not $RemoveApps) {
+    Write-Host "Skipping app removal (no -RemoveApps flag)." -ForegroundColor Yellow
+    return
+}
+
+# Logging
+$logFile = "C:\Logs\AppRemoval.log"
+Start-Transcript -Path $logFile -ErrorAction SilentlyContinue
+
+# List of package name patterns to remove
+$appPatterns = @(
+    "*Copilot*",
+    "Microsoft.WindowsFeedbackHub",
+    "Microsoft.MicrosoftOfficeHub",
+    "Microsoft.BingNews",
+    "Microsoft.WindowsSoundRecorder",
+    "Microsoft.WindowsAlarms",
+    "Microsoft.MicrosoftSolitaireCollection",
+    "MicrosoftCorporationII.QuickAssist",
+    "windowscommunicationsapps",      # Mail & Calendar (Outlook)
+    "*Xbox*"
+)
+
+foreach ($pattern in $appPatterns) {
+    try {
+        $matches = Get-AppxPackage -AllUsers -Name $pattern -ErrorAction SilentlyContinue
+        foreach ($pkg in $matches) {
+            $msg = "Removing AppxPackage: $($pkg.Name)"
+            if ($DryRun) {
+                Write-Output "[DryRun] $msg" | Out-File $logFile -Append
+            } else {
+                Remove-AppxPackage    -Package $pkg.PackageFullName -AllUsers -ErrorAction SilentlyContinue
+                Remove-AppxProvisionedPackage -Online -PackageName $pkg.PackageFullName -ErrorAction SilentlyContinue
+                Write-Output "$msg => Success" | Out-File $logFile -Append
+            }
+        }
+    } catch {
+        Write-Warning "Error removing pattern $pattern: $_"
+    }
+}
+
+Stop-Transcript
+Write-Host "App removal module complete." -ForegroundColor Green

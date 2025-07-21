@@ -1,0 +1,85 @@
+<#
+.SYNOPSIS
+  Hardens privacy and configures Windows Update policies.
+.DESCRIPTION
+  Disables consumer features, telemetry, Copilot button, update tasks; enables Microsoft Update service.
+  Optionally disables Windows suggestions, Store recommendations, and Taskbar widget feeds.
+.PARAMETER DisableSuggestions
+  When specified, disables Start/Lock-screen suggestions and Taskbar news widget.
+#>
+param (
+    [switch]$DryRun,
+    [switch]$DisableSuggestions
+)
+
+# Logging
+$logFile = "C:\Logs\PrivacyConfig.log"
+Start-Transcript -Path $logFile -ErrorAction SilentlyContinue
+
+if (-not $DryRun) {
+    function Set-Reg { param($Path,$Name,$Value)
+        Set-ItemProperty -Path $Path -Name $Name -Type DWord -Value $Value
+        Write-Output "$Name -> $Value" | Out-File $logFile -Append
+    }
+
+    # Disable consumer features & telemetry
+    Set-Reg HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent DisableWindowsConsumerFeatures 1
+    Set-Reg HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection AllowTelemetry 0
+
+    # Disable Copilot button
+    Set-ItemProperty `
+      -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced `
+      -Name ShowCopilotButton -Type DWord -Value 0
+    Write-Output "ShowCopilotButton -> 0" | Out-File $logFile -Append
+
+    # Disable scheduled update tasks
+    $tasks = @(
+        "\Microsoft\Windows\Setup\EOSNotify",
+        "\Microsoft\Windows\Setup\EOSNotify2",
+        "\Microsoft\Windows\Setup\OobeUpdater"
+    )
+    foreach ($t in $tasks) {
+        Disable-ScheduledTask -TaskName $t -ErrorAction SilentlyContinue
+        Write-Output "Disabled task: $t" | Out-File $logFile -Append
+    }
+
+    # Windows Update policy
+    $wu = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU"
+    if (-not (Test-Path $wu)) { New-Item -Path $wu -Force | Out-Null }
+    Set-Reg $wu NoAutoUpdate 1
+
+    # Enable Microsoft Update Service
+    try {
+        (New-Object -ComObject "Microsoft.Update.ServiceManager").AddService2(
+          "7971f918-a847-4430-9279-4a52d1efe18d",7,""
+        )
+        Write-Output "Microsoft Update Service enabled" | Out-File $logFile -Append
+    } catch {
+        Write-Warning "Failed to enable MS Update Service: $_"
+    }
+
+    # —— New: Disable all suggestions & widget feeds ——
+    if ($DisableSuggestions) {
+        Write-Output "Disabling Windows suggestions and Taskbar widget feeds" | Out-File $logFile -Append
+
+        # Turn off Start & lock-screen suggestions
+        $cdm = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager"
+        Set-ItemProperty -Path $cdm -Name "SubscribedContent-310093Enabled" -Type DWord -Value 0
+        Set-ItemProperty -Path $cdm -Name "SubscribedContent-338388Enabled" -Type DWord -Value 0
+        Set-ItemProperty -Path $cdm -Name "SubscribedContent-353694Enabled" -Type DWord -Value 0
+        Set-ItemProperty -Path $cdm -Name "SystemPaneSuggestionsEnabled" -Type DWord -Value 0
+        Write-Output "Disabled Start/Lock-screen & Store recommendations" | Out-File $logFile -Append
+
+        # Disable Taskbar News & Interests (Widgets)
+        $feeds = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds"
+        if (-not (Test-Path $feeds)) { New-Item -Path $feeds | Out-Null }
+        Set-ItemProperty -Path $feeds -Name "EnableFeeds" -Type DWord -Value 0
+        Set-ItemProperty -Path $feeds -Name "ShellFeedsTaskbarViewMode" -Type DWord -Value 2
+        Write-Output "Disabled taskbar widget feeds" | Out-File $logFile -Append
+    }
+
+    Write-Output "Privacy & update configuration complete." | Out-File $logFile -Append
+}
+
+Stop-Transcript
+Write-Host "Privacy & Updates module complete." -ForegroundColor Green

@@ -1,0 +1,71 @@
+<#
+.SYNOPSIS
+  Configures private network visibility and disables autoplay features.
+.DESCRIPTION
+  Sets existing and future networks to private, marks Wi-Fi as metered to reduce telemetry, and disables autoplay prompts.
+.AUTHOR
+  Originally Jessop, enhanced by Robert with Copilot assistance.
+.VERSION
+  1.0
+#>
+
+# =========================
+# 🧾 Start Logging
+# =========================
+$logFile = "C:\Logs\NetworkPrivacy.log"
+Start-Transcript -Path $logFile
+Write-Host "🌐 Starting network privacy configuration..." -ForegroundColor Cyan
+
+# =========================
+# 🛡️ Set All Networks to Private
+# =========================
+try {
+    $profiles = Get-NetConnectionProfile
+    foreach ($profile in $profiles) {
+        Set-NetConnectionProfile -InterfaceIndex $profile.InterfaceIndex -NetworkCategory Private
+    }
+    Write-Output "🔒 Set all existing networks to Private." | Out-File $logFile -Append
+} catch {
+    Write-Warning "⚠️ Failed to set existing networks: $_"
+}
+
+# Set default for new networks
+Set-ItemProperty -Path "HKLM:\Software\Microsoft\Windows NT\CurrentVersion\NetworkList\DefaultMediaCost" `
+                 -Name "Default" -Value 1 -PropertyType DWord -Force
+Write-Output "🔒 Default media cost set to Private." | Out-File $logFile -Append
+
+# =========================
+# 📶 Meter All Wi-Fi Connections
+# =========================
+try {
+    $wifiAdapters = Get-NetAdapter | Where-Object { $_.MediaType -eq "802.11" }
+    foreach ($adapter in $wifiAdapters) {
+        Set-NetConnectionProfile -InterfaceAlias $adapter.Name -NetworkCategory Private
+        Set-NetConnectionProfile -InterfaceAlias $adapter.Name -NetworkCost Metered
+    }
+    Write-Output "📡 Metered all Wi-Fi connections." | Out-File $logFile -Append
+} catch {
+    Write-Warning "⚠️ Failed to meter Wi-Fi adapters: $_"
+}
+
+# =========================
+# 🚫 Disable Autoplay + Autorun
+# =========================
+Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\AutoplayHandlers" `
+                 -Name "DisableAutoplay" -Type DWord -Value 1
+Write-Output "🛑 Autoplay disabled." | Out-File $logFile -Append
+
+# Ensure Policies\Explorer key exists for Autorun blocking
+$autorunKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"
+if (-not (Test-Path $autorunKey)) {
+    New-Item -Path $autorunKey | Out-Null
+}
+
+Set-ItemProperty -Path $autorunKey -Name "NoDriveTypeAutoRun" -Type DWord -Value 255
+Write-Output "🚫 Autorun disabled for all drives." | Out-File $logFile -Append
+
+# =========================
+# ✅ Wrap-Up
+# =========================
+Stop-Transcript
+Write-Host "🔧 Network privacy and autoplay settings applied." -ForegroundColor Green

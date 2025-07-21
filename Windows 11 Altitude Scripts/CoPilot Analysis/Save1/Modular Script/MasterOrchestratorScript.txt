@@ -1,0 +1,41 @@
+<#
+.SYNOPSIS
+  Executes complete system configuration workflow using modular deployment scripts.
+.DESCRIPTION
+  Calls sequential modules for power, time sync, maintenance, privacy, visual effects, networking, and cleanup. Logs execution status and supports switches.
+.AUTHOR
+  Composed by Robert with Copilot's assistance.
+.VERSION
+  3.0
+#>
+
+# =========================
+# 🌐 Parameters
+# =========================
+param (
+    [switch]$DryRun,
+    [switch]$SkipUpdates,
+    [switch]$SkipOneDrive,
+    [switch]$EnableVerbose
+)
+
+# =========================
+# 🔐 Check for Admin Rights
+# =========================
+if (-not ([Security.Principal.WindowsPrincipal] `
+    [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(`
+    [Security.Principal.WindowsBuiltinRole]::Administrator)) {
+    Write-Warning "⚠️ Run this script as Administrator."
+    exit
+}
+
+# =========================
+# 📦 Module List
+# =========================
+$modules = @(
+    @{ Name = "Configure-TimeZone.ps1";         Skip = $false },
+    @{ Name = "Configure-PowerPlan.ps1";        Skip = $false },
+    @{ Name = "Configure-Maintenance.ps1";      Skip = $false },
+    @{ Name = "Configure-PrivacyAndUpdates.ps1"; Skip = $SkipUpdates },
+    @{ Name = "Configure-VisualEffects.ps1";    Skip = $false },
+    @{ Name = "Configure-NetworkPrivacy.ps1";   Skip

@@ -1,0 +1,12 @@
+$summary = @{}
+
+function Log-Result {
+    param ($moduleName, $status)
+    $summary[$moduleName] = $status
+}
+
+# At the end of script
+Write-Host "`n📊 Execution Summary:"
+foreach ($key in $summary.Keys) {
+    Write-Host "$key: $($summary[$key])"
+}
