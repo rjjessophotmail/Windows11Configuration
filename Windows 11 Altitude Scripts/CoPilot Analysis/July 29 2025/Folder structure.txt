@@ -1,0 +1,17 @@
+Base restructure of original/
+│
+├── AllSetup.ps1
+├── modules/
+│   ├── AppRemoval.psm1
+│   ├── ApplyAllSettings.psm1
+│   ├── BatterySettings.psm1
+│   ├── DisplayAndMultimedia.psm1
+│   ├── MaintenanceTasks.psm1
+│   ├── NetworkTweaks.psm1
+│   ├── PerformanceTweaks.psm1
+│   ├── PowerPlan.psm1
+│   ├── PrivacyTweaks.psm1
+│   ├── SleepAndHibernate.psm1
+│   ├── TimeSettings.psm1
+│   └── UpdateControl.psm1
+└── README.md
