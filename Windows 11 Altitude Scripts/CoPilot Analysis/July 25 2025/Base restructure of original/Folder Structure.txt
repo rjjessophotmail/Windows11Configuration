@@ -1,0 +1,6 @@
+Windows11-Altitude-Config/
+├── AllSetup.ps1
+├── modules/
+│   ├── TimeSettings.psm1
+│   └── (other modules to come)
+└── README.md
